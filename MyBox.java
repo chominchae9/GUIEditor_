@@ -9,11 +9,7 @@ public class MyBox implements Serializable {
     protected Color rectColor = null;
     protected int width = 0;
     protected int height = 0;
-
-    MyBox() {
-        sPos = new MyPoint();
-        ePos = new MyPoint();
-    }
+    protected int strokeWidth = 1; // 두께 추가
 
     MyBox(MyPoint s, MyPoint e) {
         sPos = s;
@@ -23,6 +19,14 @@ public class MyBox implements Serializable {
 
     public void setColor(Color c) {
         this.rectColor = c;
+    }
+
+    public void setStrokeWidth(int width) {
+        this.strokeWidth = width;
+    }
+
+    public int getStrokeWidth() {
+        return strokeWidth;
     }
 
     public void rectUpdate() {

@@ -12,9 +12,9 @@ class DrawingPanel extends JPanel {
     private Vector<MyBox> rectList;
     private Vector<MyBox> circleList;
     private Vector<MyPath> penPaths;
-    private Vector<MyPath> pencilPaths;
-    private Image loadedImage = null; // 불러온 이미지
-    
+    private Image loadedImage = null;
+    private int currentStrokeWidth = 1; // 현재 설정된 두께
+
     MyPoint start = null;
     MyPoint end = null;
 
@@ -22,7 +22,6 @@ class DrawingPanel extends JPanel {
         rectList = new Vector<>();
         circleList = new Vector<>();
         penPaths = new Vector<>();
-        pencilPaths = new Vector<>();
         start = new MyPoint();
         end = new MyPoint();
 
@@ -31,11 +30,10 @@ class DrawingPanel extends JPanel {
                 start.x = e.getX();
                 start.y = e.getY();
 
-                if (EditorEx.selectedDrawingTool == 2 || EditorEx.selectedDrawingTool == 3) {
-                    MyPath path = new MyPath(EditorEx.currentColor);
+                if (EditorEx.selectedDrawingTool == 2) { // Pen
+                    MyPath path = new MyPath(EditorEx.currentColor, currentStrokeWidth);
                     path.addPoint(new MyPoint(start.x, start.y));
-                    if (EditorEx.selectedDrawingTool == 2) penPaths.add(path);
-                    if (EditorEx.selectedDrawingTool == 3) pencilPaths.add(path);
+                    penPaths.add(path);
                 }
             }
 
@@ -45,14 +43,16 @@ class DrawingPanel extends JPanel {
 
                 if (EditorEx.selectedDrawingTool == 0) { // Rectangle
                     MyBox rect = new MyBox(new MyPoint(start.x, start.y), new MyPoint(end.x, end.y));
-                    rect.setColor(EditorEx.currentColor);
+                    rect.setColor(EditorEx.currentColor); // 색상 설정
+                    rect.setStrokeWidth(currentStrokeWidth); // 두께 설정
                     rectList.add(rect);
                 } else if (EditorEx.selectedDrawingTool == 1) { // Circle
                     MyBox circle = new MyBox(new MyPoint(start.x, start.y), new MyPoint(end.x, end.y));
-                    circle.setColor(EditorEx.currentColor);
+                    circle.setColor(EditorEx.currentColor); // 색상 설정
+                    circle.setStrokeWidth(currentStrokeWidth); // 두께 설정
                     circleList.add(circle);
                 }
-                repaint(); // Always repaint after adding a shape
+                repaint();
             }
         });
 
@@ -60,8 +60,8 @@ class DrawingPanel extends JPanel {
             public void mouseDragged(MouseEvent e) {
                 if (EditorEx.selectedDrawingTool == 4) { // Eraser
                     eraseShapes(e.getX(), e.getY());
-                } else if (EditorEx.selectedDrawingTool == 2 || EditorEx.selectedDrawingTool == 3) {
-                    MyPath currentPath = EditorEx.selectedDrawingTool == 2 ? penPaths.lastElement() : pencilPaths.lastElement();
+                } else if (EditorEx.selectedDrawingTool == 2) { // Pen
+                    MyPath currentPath = penPaths.lastElement();
                     currentPath.addPoint(new MyPoint(e.getX(), e.getY()));
                 }
                 repaint();
@@ -69,72 +69,77 @@ class DrawingPanel extends JPanel {
         });
     }
 
-    // 이미지 로드
-    public void loadImage(File file) throws IOException {
-        loadedImage = ImageIO.read(file); // 이미지 로드
-        repaint(); // 패널 다시 그리기
-    }
-
     private void eraseShapes(int x, int y) {
         MyPoint point = new MyPoint(x, y);
-
-        // Remove shapes overlapping with the eraser point
         rectList.removeIf(rect -> rect.contains(point));
         circleList.removeIf(circle -> circle.contains(point));
-
-        // Remove pen or pencil paths that overlap
         penPaths.removeIf(path -> path.isNear(point, 5));
-        pencilPaths.removeIf(path -> path.isNear(point, 5));
-    }
-    public DrawingData getDrawingData() {
-        return new DrawingData(rectList, circleList, penPaths, pencilPaths);
     }
 
-    public void loadShapes(DrawingData data) {
-        rectList = data.rectList;
-        circleList = data.circleList;
-        penPaths = data.penPaths;
-        pencilPaths = data.pencilPaths;
+    public void loadImage(File file) throws IOException {
+        loadedImage = ImageIO.read(file);
         repaint();
     }
-    
+
+    public DrawingData getDrawingData() {
+        return new DrawingData(rectList, circleList, penPaths);
+    }
+
     public void cleanAllShapes() {
-        rectList.clear(); // 사각형 리스트 초기화
-        circleList.clear(); // 원 리스트 초기화
-        penPaths.clear(); // 펜 경로 초기화
-        pencilPaths.clear(); // 연필 경로 초기화
-        repaint(); // 화면 업데이트
+        rectList.clear();
+        circleList.clear();
+        penPaths.clear();
+        repaint();
         JOptionPane.showMessageDialog(null, "All shapes cleared.");
     }
 
+    public void setStrokeWidth(int width) {
+        this.currentStrokeWidth = width; // 두께 업데이트
+    }
+
+    public int getStrokeWidth() {
+        return currentStrokeWidth;
+    }
+
+    @Override
     public void paintComponent(Graphics g) {
         super.paintComponent(g);
 
-        // 불러온 이미지 그리기
+        Graphics2D g2d = (Graphics2D) g;
+
+        // 배경 이미지 그리기
         if (loadedImage != null) {
-            g.drawImage(loadedImage, 0, 0, getWidth(), getHeight(), this);
+            g2d.drawImage(loadedImage, 0, 0, getWidth(), getHeight(), this);
         }
-        
+
+        // 사각형 그리기
         for (MyBox rect : rectList) {
-            g.setColor(rect.rectColor);
-            rect.rectUpdate();
-            g.drawRect(rect.sPos.x, rect.sPos.y, rect.width, rect.height);
+            g2d.setColor(rect.rectColor); // 저장된 색상 설정
+            g2d.setStroke(new BasicStroke(rect.getStrokeWidth())); // 저장된 두께 사용
+            g2d.drawRect(
+                Math.min(rect.sPos.x, rect.ePos.x),
+                Math.min(rect.sPos.y, rect.ePos.y),
+                Math.abs(rect.sPos.x - rect.ePos.x),
+                Math.abs(rect.sPos.y - rect.ePos.y)
+            );
         }
 
+        // 원 그리기
         for (MyBox circle : circleList) {
-            g.setColor(circle.rectColor);
-            circle.rectUpdate();
-            g.drawOval(circle.sPos.x, circle.sPos.y, circle.width, circle.height);
+            g2d.setColor(circle.rectColor); // 저장된 색상 설정
+            g2d.setStroke(new BasicStroke(circle.getStrokeWidth())); // 저장된 두께 사용
+            g2d.drawOval(
+                Math.min(circle.sPos.x, circle.ePos.x),
+                Math.min(circle.sPos.y, circle.ePos.y),
+                Math.abs(circle.sPos.x - circle.ePos.x),
+                Math.abs(circle.sPos.y - circle.ePos.y)
+            );
         }
 
+        // 펜 경로 그리기
         for (MyPath path : penPaths) {
-            g.setColor(path.color);
-            path.draw(g, 3);
-        }
-
-        for (MyPath path : pencilPaths) {
-            g.setColor(path.color);
-            path.draw(g, 1);
+            g2d.setColor(path.color); // 펜 색상 설정
+            path.draw(g2d); // 두께 적용
         }
     }
 }
